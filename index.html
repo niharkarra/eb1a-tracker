@@ -49,6 +49,13 @@
   .filters label { display: flex; flex-direction: column; font-size: .85rem; color: var(--muted); gap: 2px; }
   input, select, textarea { font: inherit; padding: 7px 9px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); }
   textarea { min-height: 80px; resize: vertical; width: 100%; }
+  .tabs { display: flex; gap: 4px; margin-top: 24px; border-bottom: 1px solid var(--border); }
+  .tabs [role=tab] { border-radius: 8px 8px 0 0; border-bottom: none; background: transparent; }
+  .tabs [role=tab][aria-selected=true] { background: var(--surface); border-color: var(--border); font-weight: 600; box-shadow: inset 0 -3px 0 var(--accent); }
+  .section-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .status-accepted { background: var(--warn-bg); color: var(--warn-text); }
+  .status-completed { background: var(--ok-bg); color: var(--ok-text); }
+  #inv-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
   #list { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
   .card { background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
   .card p { margin: 8px 0; white-space: pre-wrap; }
@@ -79,6 +86,7 @@
     .no-print, .toolbar, .filters, footer, #toast { display: none !important; }
     body { background: #fff; color: #000; }
     .card { break-inside: avoid; border-color: #999; }
+    [role=tabpanel][hidden] { display: block !important; }
   }
 </style>
 </head>
@@ -104,7 +112,12 @@
     <div id="criteria" class="criteria"></div>
   </section>
 
-  <section aria-labelledby="list-heading">
+  <div class="tabs no-print" role="tablist" aria-label="Sections">
+    <button type="button" role="tab" id="tab-btn-contrib" aria-controls="tab-contrib" aria-selected="true">Contributions &amp; evidence</button>
+    <button type="button" role="tab" id="tab-btn-invites" aria-controls="tab-invites" aria-selected="false" tabindex="-1">Invitations <span id="inv-tab-count" class="badge"></span></button>
+  </div>
+
+  <section id="tab-contrib" role="tabpanel" aria-labelledby="tab-btn-contrib">
     <h2 id="list-heading">Contributions &amp; evidence</h2>
     <div class="filters">
       <label>Search <input type="search" id="f-q" placeholder="Title, notes, tags…"></label>
@@ -114,6 +127,23 @@
       <span id="count" class="muted" aria-live="polite"></span>
     </div>
     <ul id="list"></ul>
+  </section>
+
+  <section id="tab-invites" role="tabpanel" aria-labelledby="tab-btn-invites" hidden>
+    <div class="section-head">
+      <h2>Invitations</h2>
+      <button type="button" class="primary no-print" id="btn-add-invite">+ Add invitation</button>
+    </div>
+    <p class="muted">Peer-review, judging, program-committee, panel and speaking invitations. Completed reviews and judging count toward the <strong>Judging</strong> criterion.</p>
+    <p id="inv-summary" class="met-summary ok" role="status"></p>
+    <div class="filters">
+      <label>Search <input type="search" id="i-q" placeholder="Title, journal, publisher…"></label>
+      <label>Type <select id="i-type"><option value="">All types</option></select></label>
+      <label>Response <select id="i-resp"><option value="">All responses</option></select></label>
+      <button type="button" id="i-clear">Clear filters</button>
+      <span id="i-count" class="muted" aria-live="polite"></span>
+    </div>
+    <ul id="inv-list" class="list"></ul>
   </section>
 </main>
 
@@ -165,6 +195,47 @@
   </form>
 </dialog>
 
+<dialog id="inv-dlg" aria-labelledby="inv-dlg-title">
+  <form id="inv-form">
+    <h2 id="inv-dlg-title">Add invitation</h2>
+    <div class="field">
+      <label for="v-title">Manuscript / event title *</label>
+      <input id="v-title" required maxlength="500" placeholder="e.g. MARIA: A Framework for Marginal Risk Assessment…">
+    </div>
+    <div class="row">
+      <div class="field"><label for="v-type">Type</label><select id="v-type"></select></div>
+      <div class="field"><label for="v-resp">Response</label><select id="v-resp"></select></div>
+    </div>
+    <div class="row">
+      <div class="field"><label for="v-venue">Journal / conference / organization</label><input id="v-venue" maxlength="300" placeholder="e.g. AI and Ethics"></div>
+      <div class="field"><label for="v-publisher">Publisher / organizer</label><input id="v-publisher" maxlength="300" placeholder="e.g. Springer Nature"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label for="v-received">Date received</label><input type="date" id="v-received"></div>
+      <div class="field"><label for="v-due">Due date</label><input type="date" id="v-due"></div>
+      <div class="field"><label for="v-completed">Date completed</label><input type="date" id="v-completed"></div>
+    </div>
+    <div class="field">
+      <label for="v-link">Link</label>
+      <input id="v-link" type="url" maxlength="2000" placeholder="Invitation page, ORCID or Web of Science review record">
+    </div>
+    <div class="field">
+      <label for="v-notes">Notes</label>
+      <textarea id="v-notes" placeholder="Abstract, journal impact factor, editor name, why you were selected…"></textarea>
+    </div>
+    <div class="field">
+      <span id="inv-existing-label" class="hint">Attached files</span>
+      <ul id="v-existing" class="files existing" aria-labelledby="inv-existing-label"></ul>
+      <label for="v-files">Upload invitation screenshots, emails, thank-you letters</label>
+      <input type="file" id="v-files" multiple>
+    </div>
+    <div class="dlg-actions">
+      <button type="button" id="inv-cancel">Cancel</button>
+      <button type="submit" class="primary">Save</button>
+    </div>
+  </form>
+</dialog>
+
 <div id="toast" role="status" aria-live="polite"></div>
 
 <script>
@@ -189,6 +260,27 @@ const STATUSES = [
   { id: 'collecting', label: 'Collecting evidence' },
   { id: 'ready', label: 'Ready' }
 ];
+const INVITE_TYPES = [
+  { id: 'journal-review', label: 'Journal peer review' },
+  { id: 'conference-review', label: 'Conference paper review' },
+  { id: 'program-committee', label: 'Program committee' },
+  { id: 'award-judge', label: 'Award / competition judge' },
+  { id: 'hackathon-judge', label: 'Hackathon judge' },
+  { id: 'grant-review', label: 'Grant / proposal review' },
+  { id: 'editorial', label: 'Editorial board / guest editor' },
+  { id: 'speaker', label: 'Speaker / keynote' },
+  { id: 'panel', label: 'Panelist' },
+  { id: 'other', label: 'Other' }
+];
+const INVITE_RESPONSES = [
+  { id: 'pending', label: 'Pending' },
+  { id: 'accepted', label: 'Accepted' },
+  { id: 'completed', label: 'Completed' },
+  { id: 'declined', label: 'Declined' }
+];
+// Invitation types that are evidence of judging the work of others.
+const JUDGING_TYPES = new Set(['journal-review', 'conference-review', 'program-committee', 'award-judge', 'hackathon-judge', 'grant-review', 'editorial']);
+const labelOf = (list, id) => (list.find(x => x.id === id) || list[list.length - 1]).label;
 
 const $ = s => document.querySelector(s);
 const critById = id => CRITERIA.find(c => c.id === id) || CRITERIA[CRITERIA.length - 1];
@@ -198,9 +290,12 @@ const safeUrl = u => /^https?:\/\//i.test(u);
 
 let db;
 let items = [];
+let invites = [];
 let editing = null;
+let invEditing = null;
 let removeSet = new Set();
 const filter = { q: '', criterion: '', status: '' };
+const invFilter = { q: '', type: '', resp: '' };
 
 // ---------- DOM helper (uses textContent, so user data is never parsed as HTML) ----------
 function h(tag, attrs = {}, ...kids) {
@@ -224,11 +319,15 @@ const done = t => new Promise((res, rej) => { t.oncomplete = () => res(); t.oner
 
 function openDB() {
   return new Promise((res, rej) => {
-    const r = indexedDB.open('eb1a-tracker', 1);
-    r.onupgradeneeded = () => {
+    const r = indexedDB.open('eb1a-tracker', 2);
+    r.onupgradeneeded = e => {
       const d = r.result;
-      d.createObjectStore('items', { keyPath: 'id' });
-      d.createObjectStore('files', { keyPath: 'id' }).createIndex('itemId', 'itemId');
+      if (e.oldVersion < 1) {
+        d.createObjectStore('items', { keyPath: 'id' });
+        d.createObjectStore('files', { keyPath: 'id' }).createIndex('itemId', 'itemId');
+      }
+      // v2: invitations. Their attachments share the 'files' store (itemId = invitation id).
+      if (e.oldVersion < 2) d.createObjectStore('invites', { keyPath: 'id' });
     };
     r.onsuccess = () => res(r.result);
     r.onerror = () => rej(r.error);
@@ -257,8 +356,9 @@ function toast(msg) {
 }
 
 // ---------- Rendering ----------
-async function refresh() { items = await getAll('items'); render(); }
-function render() { renderCriteria(); renderList(); updateStorage(); }
+async function refresh() { items = await getAll('items'); invites = await getAll('invites'); render(); }
+function render() { renderCriteria(); renderList(); renderInvites(); updateStorage(); }
+const completedJudging = () => invites.filter(v => v.response === 'completed' && JUDGING_TYPES.has(v.type)).length;
 
 function renderCriteria() {
   const grid = $('#criteria');
@@ -266,7 +366,8 @@ function renderCriteria() {
   let met = 0;
   for (const c of CRITERIA) {
     const list = items.filter(i => i.criterion === c.id);
-    const ready = list.filter(i => i.status === 'ready').length;
+    const reviews = c.id === 'judging' ? completedJudging() : 0;
+    const ready = list.filter(i => i.status === 'ready').length + reviews;
     const counts = c.id !== 'other';
     if (counts && ready > 0) met++;
     const active = filter.criterion === c.id;
@@ -279,6 +380,7 @@ function renderCriteria() {
     },
       h('span', { class: 'crit-name' }, c.name),
       h('span', { class: 'crit-count' }, `${list.length} ${list.length === 1 ? 'entry' : 'entries'} · ${ready} ready`),
+      reviews ? h('span', { class: 'crit-count' }, `incl. ${reviews} completed ${reviews === 1 ? 'review' : 'reviews'} from Invitations`) : null,
       counts && ready ? h('span', { class: 'crit-badge' }, '✓ Has ready evidence') : null
     ));
   }
@@ -356,10 +458,11 @@ async function openFile(id, download) {
 // ---------- Add / edit / delete ----------
 function updateCritDesc() { $('#e-crit-desc').textContent = critById($('#e-crit').value).desc; }
 
-function renderExisting() {
-  const ul = $('#e-existing');
+// Shared by both dialogs (only one is open at a time). Defaults to the entry dialog.
+function renderExisting(sel = '#e-existing', rec = editing) {
+  const ul = $(sel);
   ul.replaceChildren();
-  const files = editing ? editing.files || [] : [];
+  const files = rec ? rec.files || [] : [];
   if (!files.length) { ul.append(h('li', { class: 'hint' }, 'None yet.')); return; }
   for (const f of files) {
     const removed = removeSet.has(f.id);
@@ -367,7 +470,7 @@ function renderExisting() {
       h('span', {}, `${f.name} (${fmtSize(f.size)})`),
       h('button', {
         type: 'button', class: 'link', 'aria-pressed': String(removed),
-        onclick: () => { removed ? removeSet.delete(f.id) : removeSet.add(f.id); renderExisting(); }
+        onclick: () => { removed ? removeSet.delete(f.id) : removeSet.add(f.id); renderExisting(sel, rec); }
       }, removed ? 'Undo remove' : 'Remove')));
   }
 }
@@ -386,7 +489,7 @@ function openForm(item) {
   $('#e-links').value = item ? (item.links || []).join('\n') : '';
   $('#e-tags').value = item ? (item.tags || []).join(', ') : '';
   updateCritDesc();
-  renderExisting();
+  renderExisting('#e-existing', editing);
   $('#dlg').showModal();
   $('#e-title').focus();
 }
@@ -428,17 +531,148 @@ async function saveForm(e) {
   await refresh();
 }
 
-async function removeItem(item) {
-  if (!confirm(`Delete "${item.title}" and its ${(item.files || []).length} attached file(s)? This cannot be undone.`)) return;
-  const t = db.transaction(['items', 'files'], 'readwrite');
-  t.objectStore('items').delete(item.id);
-  t.objectStore('files').index('itemId').openCursor(IDBKeyRange.only(item.id)).onsuccess = ev => {
+// Deletes a record from 'items' or 'invites' plus all of its attached files.
+async function removeRecord(store, rec, noun) {
+  if (!confirm(`Delete "${rec.title}" and its ${(rec.files || []).length} attached file(s)? This cannot be undone.`)) return;
+  const t = db.transaction([store, 'files'], 'readwrite');
+  t.objectStore(store).delete(rec.id);
+  t.objectStore('files').index('itemId').openCursor(IDBKeyRange.only(rec.id)).onsuccess = ev => {
     const cur = ev.target.result;
     if (cur) { cur.delete(); cur.continue(); }
   };
   await done(t);
-  toast('Entry deleted.');
+  toast(noun + ' deleted.');
   await refresh();
+}
+const removeItem = item => removeRecord('items', item, 'Entry');
+
+// Read selected files into Blobs BEFORE opening a transaction (an await inside it would auto-commit).
+async function readFiles(input, itemId) {
+  const out = [];
+  for (const file of input.files) {
+    const blob = new Blob([await file.arrayBuffer()], { type: file.type || 'application/octet-stream' });
+    out.push({ id: uid(), itemId, name: file.name, type: file.type, size: file.size, blob });
+  }
+  return out;
+}
+
+function fileList(files) {
+  if (!files || !files.length) return null;
+  return h('ul', { class: 'files', 'aria-label': 'Attached files' },
+    files.map(f => h('li', {},
+      h('span', {}, `📎 ${f.name} (${fmtSize(f.size)})`),
+      h('button', { type: 'button', class: 'link no-print', 'aria-label': `Open ${f.name}`, onclick: () => openFile(f.id, false) }, 'Open'),
+      h('button', { type: 'button', class: 'link no-print', 'aria-label': `Download ${f.name}`, onclick: () => openFile(f.id, true) }, 'Download'))));
+}
+
+// ---------- Invitations ----------
+function renderInvites() {
+  const n = k => invites.filter(v => v.response === k).length;
+  const venues = new Set(invites.map(v => (v.venue || '').trim().toLowerCase()).filter(Boolean)).size;
+  $('#inv-tab-count').textContent = invites.length || '';
+  $('#inv-summary').textContent = `${invites.length} invitations · ${n('completed')} completed · ${n('accepted')} accepted · ${n('pending')} pending · ${n('declined')} declined · ${venues} distinct journals/venues`;
+
+  const q = invFilter.q.toLowerCase();
+  const list = invites
+    .filter(v => (!invFilter.type || v.type === invFilter.type)
+      && (!invFilter.resp || v.response === invFilter.resp)
+      && (!q || [v.title, v.venue, v.publisher, v.notes, v.link, (v.files || []).map(f => f.name).join(' ')].join(' ').toLowerCase().includes(q)))
+    .sort((a, b) => (b.received || '').localeCompare(a.received || '') || b.updatedAt - a.updatedAt);
+  const ul = $('#inv-list');
+  ul.replaceChildren();
+  $('#i-count').textContent = `Showing ${list.length} of ${invites.length}`;
+  if (!list.length) {
+    ul.append(h('li', { class: 'empty' }, invites.length ? 'No invitations match your filters.' : 'No invitations yet. Click "Add invitation" and upload the invite screenshot or email.'));
+    return;
+  }
+  for (const v of list) ul.append(inviteCard(v));
+}
+
+function inviteCard(v) {
+  const dates = [
+    v.received ? `Received ${fmtDate(v.received)}` : null,
+    v.due ? `Due ${fmtDate(v.due)}` : null,
+    v.completed ? `Completed ${fmtDate(v.completed)}` : null
+  ].filter(Boolean).join(' · ');
+  return h('li', { class: 'card' },
+    h('div', { class: 'card-head' },
+      h('h3', {}, v.title),
+      h('div', { class: 'badges' },
+        h('span', { class: 'badge' }, labelOf(INVITE_TYPES, v.type)),
+        h('span', { class: 'badge status-' + v.response }, labelOf(INVITE_RESPONSES, v.response)))),
+    v.venue || v.publisher ? h('p', {}, h('strong', {}, v.venue || ''), v.venue && v.publisher ? ' · ' : '', v.publisher || '') : null,
+    dates ? h('p', { class: 'muted' }, dates) : null,
+    v.notes ? h('p', {}, v.notes) : null,
+    v.link ? h('p', {}, safeUrl(v.link) ? h('a', { href: v.link, target: '_blank', rel: 'noopener noreferrer' }, v.link) : v.link) : null,
+    fileList(v.files),
+    h('div', { class: 'actions no-print' },
+      h('button', { type: 'button', onclick: () => openInviteForm(v) }, 'Edit'),
+      h('button', { type: 'button', class: 'danger', onclick: () => removeRecord('invites', v, 'Invitation') }, 'Delete')));
+}
+
+function openInviteForm(v) {
+  invEditing = v || null;
+  removeSet = new Set();
+  $('#inv-form').reset();
+  $('#inv-dlg-title').textContent = v ? 'Edit invitation' : 'Add invitation';
+  $('#v-title').value = v ? v.title : '';
+  $('#v-type').value = v ? v.type : (invFilter.type || 'journal-review');
+  $('#v-resp').value = v ? v.response : 'pending';
+  $('#v-venue').value = v ? v.venue || '' : '';
+  $('#v-publisher').value = v ? v.publisher || '' : '';
+  $('#v-received').value = v ? v.received || '' : new Date().toISOString().slice(0, 10);
+  $('#v-due').value = v ? v.due || '' : '';
+  $('#v-completed').value = v ? v.completed || '' : '';
+  $('#v-link').value = v ? v.link || '' : '';
+  $('#v-notes').value = v ? v.notes || '' : '';
+  renderExisting('#v-existing', invEditing);
+  $('#inv-dlg').showModal();
+  $('#v-title').focus();
+}
+
+async function saveInvite(e) {
+  e.preventDefault();
+  const now = Date.now();
+  const id = invEditing ? invEditing.id : uid();
+  const added = await readFiles($('#v-files'), id);
+  const kept = (invEditing ? invEditing.files || [] : []).filter(f => !removeSet.has(f.id));
+  const rec = {
+    id,
+    title: $('#v-title').value.trim(),
+    type: $('#v-type').value,
+    response: $('#v-resp').value,
+    venue: $('#v-venue').value.trim(),
+    publisher: $('#v-publisher').value.trim(),
+    received: $('#v-received').value,
+    due: $('#v-due').value,
+    completed: $('#v-completed').value,
+    link: $('#v-link').value.trim(),
+    notes: $('#v-notes').value.trim(),
+    files: [...kept, ...added.map(({ blob, ...meta }) => meta)],
+    createdAt: invEditing ? invEditing.createdAt : now,
+    updatedAt: now
+  };
+  if (!rec.title) { $('#v-title').focus(); return; }
+  // Marking a completion date implies the review was done.
+  if (rec.completed && rec.response !== 'declined') rec.response = 'completed';
+  const t = db.transaction(['invites', 'files'], 'readwrite');
+  t.objectStore('invites').put(rec);
+  for (const a of added) t.objectStore('files').put(a);
+  for (const fid of removeSet) t.objectStore('files').delete(fid);
+  try { await done(t); } catch (err) { toast('Save failed: ' + (err && err.message || err)); return; }
+  const wasEdit = !!invEditing;
+  $('#inv-dlg').close();
+  toast(wasEdit ? 'Invitation updated.' : 'Invitation added.');
+  await refresh();
+}
+
+function showTab(which) {
+  for (const [key, btn, panel] of [['contrib', '#tab-btn-contrib', '#tab-contrib'], ['invites', '#tab-btn-invites', '#tab-invites']]) {
+    const on = key === which;
+    $(btn).setAttribute('aria-selected', String(on));
+    $(btn).tabIndex = on ? 0 : -1;
+    $(panel).hidden = !on;
+  }
 }
 
 // ---------- Backup ----------
@@ -459,9 +693,10 @@ function dataURLToBlob(u) {
 
 async function exportBackup() {
   const all = await getAll('items');
+  const inv = await getAll('invites');
   const files = await getAll('files');
   const out = {
-    app: 'eb1a-tracker', version: 1, exportedAt: new Date().toISOString(), items: all,
+    app: 'eb1a-tracker', version: 2, exportedAt: new Date().toISOString(), items: all, invites: inv,
     files: await Promise.all(files.map(async f => ({ id: f.id, itemId: f.itemId, name: f.name, type: f.type, size: f.size, data: await blobToDataURL(f.blob) })))
   };
   const url = URL.createObjectURL(new Blob([JSON.stringify(out)], { type: 'application/json' }));
@@ -470,7 +705,7 @@ async function exportBackup() {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 60000);
-  toast(`Exported ${all.length} entries and ${files.length} files.`);
+  toast(`Exported ${all.length} entries, ${inv.length} invitations and ${files.length} files.`);
 }
 
 const str = (v, max = 20000) => typeof v === 'string' ? v.slice(0, max) : '';
@@ -492,6 +727,24 @@ function cleanItem(i) {
   };
 }
 
+const isoDate = d => /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : '';
+function cleanInvite(v) {
+  if (!v || typeof v.id !== 'string' || !str(v.title)) return null;
+  return {
+    id: v.id,
+    title: str(v.title, 500),
+    type: INVITE_TYPES.some(t => t.id === v.type) ? v.type : 'other',
+    response: INVITE_RESPONSES.some(r => r.id === v.response) ? v.response : 'pending',
+    venue: str(v.venue, 300), publisher: str(v.publisher, 300),
+    received: isoDate(v.received), due: isoDate(v.due), completed: isoDate(v.completed),
+    link: str(v.link, 2000), notes: str(v.notes),
+    files: Array.isArray(v.files) ? v.files.filter(f => f && typeof f.id === 'string')
+      .map(f => ({ id: f.id, itemId: v.id, name: str(f.name, 500) || 'file', type: str(f.type, 200), size: Number(f.size) || 0 })) : [],
+    createdAt: Number(v.createdAt) || Date.now(),
+    updatedAt: Number(v.updatedAt) || Date.now()
+  };
+}
+
 async function importBackup(e) {
   const file = e.target.files[0];
   e.target.value = '';
@@ -502,17 +755,20 @@ async function importBackup(e) {
     toast('That file is not an EB-1A tracker backup.');
     return;
   }
-  if (!confirm(`Import ${data.items.length} entries and ${data.files.length} files? Entries with matching IDs will be overwritten; others are kept.`)) return;
+  const invIn = Array.isArray(data.invites) ? data.invites : []; // absent in v1 backups
+  if (!confirm(`Import ${data.items.length} entries, ${invIn.length} invitations and ${data.files.length} files? Records with matching IDs will be overwritten; others are kept.`)) return;
   try {
     const itemsIn = data.items.map(cleanItem).filter(Boolean);
+    const invitesIn = invIn.map(cleanInvite).filter(Boolean);
     const filesIn = data.files
       .filter(f => f && typeof f.id === 'string' && typeof f.data === 'string' && f.data.startsWith('data:'))
       .map(f => ({ id: f.id, itemId: String(f.itemId), name: str(f.name, 500) || 'file', type: str(f.type, 200), size: Number(f.size) || 0, blob: dataURLToBlob(f.data) }));
-    const t = db.transaction(['items', 'files'], 'readwrite');
+    const t = db.transaction(['items', 'invites', 'files'], 'readwrite');
     for (const i of itemsIn) t.objectStore('items').put(i);
+    for (const v of invitesIn) t.objectStore('invites').put(v);
     for (const f of filesIn) t.objectStore('files').put(f);
     await done(t);
-    toast(`Imported ${itemsIn.length} entries and ${filesIn.length} files.`);
+    toast(`Imported ${itemsIn.length} entries, ${invitesIn.length} invitations and ${filesIn.length} files.`);
   } catch (err) {
     toast('Import failed: ' + (err && err.message || err));
   }
@@ -542,6 +798,33 @@ async function init() {
     Object.assign(filter, { q: '', criterion: '', status: '' });
     $('#f-q').value = ''; $('#f-crit').value = ''; $('#f-status').value = '';
     render();
+  });
+
+  // Invitations
+  $('#v-type').append(...INVITE_TYPES.map(t => h('option', { value: t.id }, t.label)));
+  $('#i-type').append(...INVITE_TYPES.map(t => h('option', { value: t.id }, t.label)));
+  $('#v-resp').append(...INVITE_RESPONSES.map(r => h('option', { value: r.id }, r.label)));
+  $('#i-resp').append(...INVITE_RESPONSES.map(r => h('option', { value: r.id }, r.label)));
+  $('#btn-add-invite').addEventListener('click', () => openInviteForm(null));
+  $('#inv-cancel').addEventListener('click', () => $('#inv-dlg').close());
+  $('#inv-form').addEventListener('submit', saveInvite);
+  $('#i-q').addEventListener('input', e => { invFilter.q = e.target.value; renderInvites(); });
+  $('#i-type').addEventListener('change', e => { invFilter.type = e.target.value; renderInvites(); });
+  $('#i-resp').addEventListener('change', e => { invFilter.resp = e.target.value; renderInvites(); });
+  $('#i-clear').addEventListener('click', () => {
+    Object.assign(invFilter, { q: '', type: '', resp: '' });
+    $('#i-q').value = ''; $('#i-type').value = ''; $('#i-resp').value = '';
+    renderInvites();
+  });
+
+  // Tabs (arrow keys move between them, per the WAI-ARIA tabs pattern)
+  $('#tab-btn-contrib').addEventListener('click', () => showTab('contrib'));
+  $('#tab-btn-invites').addEventListener('click', () => showTab('invites'));
+  $('.tabs').addEventListener('keydown', e => {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    const next = $('#tab-btn-contrib').getAttribute('aria-selected') === 'true' ? 'invites' : 'contrib';
+    showTab(next);
+    $(next === 'invites' ? '#tab-btn-invites' : '#tab-btn-contrib').focus();
   });
 
   try {
