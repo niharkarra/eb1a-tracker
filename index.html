@@ -1,0 +1,560 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- No network access at all: everything stays in this browser. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src blob: data:; media-src blob:; frame-src blob:; object-src blob:; form-action 'none'; base-uri 'none'">
+<title>EB-1A Evidence Tracker</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --surface: #ffffff; --text: #1b1f24; --muted: #5a636e;
+    --border: #d5d9df; --accent: #1f5fbf; --accent-text: #ffffff;
+    --ok-bg: #e3f4e8; --ok-text: #14532d; --warn-bg: #fff4d6; --warn-text: #6b4a00;
+    --danger: #b42318; --chip-bg: #eef1f5; --chip-text: #2a313a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151a; --surface: #1b2028; --text: #e7eaee; --muted: #a2abb6;
+      --border: #333b47; --accent: #6ea8ff; --accent-text: #0b1220;
+      --ok-bg: #133524; --ok-text: #b8f0cc; --warn-bg: #3a2e0c; --warn-text: #ffe39a;
+      --danger: #ff8a80; --chip-bg: #262d38; --chip-text: #dce2ea;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); }
+  header, main, footer { max-width: 1100px; margin: 0 auto; padding: 16px; }
+  header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
+  h1 { font-size: 1.5rem; margin: 0; }
+  h2 { font-size: 1.1rem; margin: 24px 0 8px; }
+  h3 { font-size: 1.05rem; margin: 0; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; }
+  button, .btn { font: inherit; padding: 7px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  button.danger { color: var(--danger); }
+  button.link { border: none; background: none; color: var(--accent); padding: 2px 6px; text-decoration: underline; }
+  button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  a { color: var(--accent); }
+  .met-summary { font-weight: 600; padding: 8px 12px; border-radius: 8px; background: var(--warn-bg); color: var(--warn-text); display: inline-block; }
+  .met-summary.ok { background: var(--ok-bg); color: var(--ok-text); }
+  .muted { color: var(--muted); }
+  .criteria { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+  .crit { text-align: left; display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; }
+  .crit.met { border-color: var(--ok-text); }
+  .crit.active { outline: 2px solid var(--accent); }
+  .crit-name { font-weight: 600; }
+  .crit-count { color: var(--muted); font-size: .9rem; }
+  .crit-badge { font-size: .8rem; color: var(--ok-text); background: var(--ok-bg); border-radius: 6px; padding: 1px 6px; align-self: flex-start; }
+  .filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0; }
+  .filters label { display: flex; flex-direction: column; font-size: .85rem; color: var(--muted); gap: 2px; }
+  input, select, textarea { font: inherit; padding: 7px 9px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); }
+  textarea { min-height: 80px; resize: vertical; width: 100%; }
+  #list { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+  .card { background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+  .card p { margin: 8px 0; white-space: pre-wrap; }
+  .card-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; align-items: baseline; }
+  .badges { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .badge, .tag { background: var(--chip-bg); color: var(--chip-text); border-radius: 999px; padding: 2px 10px; font-size: .82rem; }
+  .status-ready { background: var(--ok-bg); color: var(--ok-text); }
+  .status-collecting { background: var(--warn-bg); color: var(--warn-text); }
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .files, .links { margin: 6px 0; padding-left: 18px; }
+  .files li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+  .actions { display: flex; gap: 8px; margin-top: 10px; }
+  .empty { padding: 24px; text-align: center; color: var(--muted); border: 1px dashed var(--border); border-radius: 12px; }
+  dialog { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); width: min(680px, 95vw); padding: 0; }
+  dialog::backdrop { background: rgb(0 0 0 / .45); }
+  dialog form { padding: 18px 20px; display: grid; gap: 12px; }
+  .field { display: grid; gap: 4px; }
+  .field label { font-weight: 600; }
+  .hint { font-size: .85rem; color: var(--muted); }
+  .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+  .dlg-actions { display: flex; justify-content: flex-end; gap: 8px; }
+  .existing li.removed span { text-decoration: line-through; color: var(--muted); }
+  #toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 8px 14px; border-radius: 8px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  #toast.show { opacity: 1; }
+  @media (prefers-reduced-motion: reduce) { #toast { transition: none; } }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  @media print {
+    .no-print, .toolbar, .filters, footer, #toast { display: none !important; }
+    body { background: #fff; color: #000; }
+    .card { break-inside: avoid; border-color: #999; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>EB-1A Evidence Tracker</h1>
+    <div class="muted">Private and offline. Data is stored only in this browser.</div>
+  </div>
+  <div class="toolbar">
+    <button type="button" class="primary" id="btn-add">+ Add entry</button>
+    <button type="button" id="btn-export">Export backup</button>
+    <button type="button" id="btn-import">Import backup</button>
+    <button type="button" id="btn-print">Print summary</button>
+    <input type="file" id="import-input" accept="application/json,.json" hidden>
+  </div>
+</header>
+
+<main>
+  <section aria-labelledby="crit-heading">
+    <h2 id="crit-heading">Criteria overview</h2>
+    <p><span id="met" class="met-summary" role="status"></span> <span id="met-note" class="muted"></span></p>
+    <div id="criteria" class="criteria"></div>
+  </section>
+
+  <section aria-labelledby="list-heading">
+    <h2 id="list-heading">Contributions &amp; evidence</h2>
+    <div class="filters">
+      <label>Search <input type="search" id="f-q" placeholder="Title, notes, tags…"></label>
+      <label>Criterion <select id="f-crit"><option value="">All criteria</option></select></label>
+      <label>Status <select id="f-status"><option value="">All statuses</option></select></label>
+      <button type="button" id="f-clear">Clear filters</button>
+      <span id="count" class="muted" aria-live="polite"></span>
+    </div>
+    <ul id="list"></ul>
+  </section>
+</main>
+
+<footer class="muted">
+  <p id="storage"></p>
+  <p>Back up regularly with <strong>Export backup</strong>. Clearing browser data deletes everything stored here. This tool organizes evidence and is not legal advice.</p>
+</footer>
+
+<dialog id="dlg" aria-labelledby="dlg-title">
+  <form id="form">
+    <h2 id="dlg-title">Add entry</h2>
+    <div class="field">
+      <label for="e-title">Title *</label>
+      <input id="e-title" required maxlength="300" placeholder="e.g. Reviewed 12 papers for IEEE ICSE 2026">
+    </div>
+    <div class="row">
+      <div class="field"><label for="e-crit">Criterion</label><select id="e-crit"></select></div>
+      <div class="field"><label for="e-status">Status</label><select id="e-status"></select></div>
+      <div class="field"><label for="e-date">Date</label><input type="date" id="e-date"></div>
+    </div>
+    <p id="e-crit-desc" class="hint"></p>
+    <div class="field">
+      <label for="e-summary">What you did</label>
+      <textarea id="e-summary" placeholder="Describe the contribution or achievement."></textarea>
+    </div>
+    <div class="field">
+      <label for="e-impact">Significance / impact</label>
+      <textarea id="e-impact" placeholder="Metrics, adoption, citations, who relied on it, revenue, press reach…"></textarea>
+    </div>
+    <div class="field">
+      <label for="e-links">Links</label>
+      <textarea id="e-links" placeholder="One URL per line"></textarea>
+    </div>
+    <div class="field">
+      <label for="e-tags">Tags</label>
+      <input id="e-tags" placeholder="Comma separated, e.g. patent, letter-needed">
+    </div>
+    <div class="field">
+      <span id="existing-label" class="hint">Attached evidence</span>
+      <ul id="e-existing" class="files existing" aria-labelledby="existing-label"></ul>
+      <label for="e-files">Add evidence files</label>
+      <input type="file" id="e-files" multiple>
+      <span class="hint">PDFs, screenshots, letters, certificates. Stored locally in this browser.</span>
+    </div>
+    <div class="dlg-actions">
+      <button type="button" id="btn-cancel">Cancel</button>
+      <button type="submit" class="primary">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+'use strict';
+
+// The 10 EB-1A regulatory criteria (8 CFR 204.5(h)(3)) plus a bucket for supporting material.
+const CRITERIA = [
+  { id: 'awards', name: 'Awards', desc: 'Nationally or internationally recognized prizes or awards for excellence in the field.' },
+  { id: 'membership', name: 'Membership', desc: 'Membership in associations that require outstanding achievements, as judged by recognized experts.' },
+  { id: 'press', name: 'Published material about you', desc: 'Professional/major trade publications or major media about you and your work.' },
+  { id: 'judging', name: 'Judging', desc: 'Judging the work of others, individually or on a panel (peer review, award panels, hackathon judging).' },
+  { id: 'contributions', name: 'Original contributions', desc: 'Original scientific, scholarly, artistic, athletic, or business contributions of major significance.' },
+  { id: 'authorship', name: 'Scholarly articles', desc: 'Authorship of scholarly articles in professional journals or other major media.' },
+  { id: 'exhibitions', name: 'Exhibitions', desc: 'Display of your work at artistic exhibitions or showcases.' },
+  { id: 'leading', name: 'Leading / critical role', desc: 'Leading or critical role for organizations or establishments with a distinguished reputation.' },
+  { id: 'salary', name: 'High remuneration', desc: 'High salary or other remuneration significantly above others in the field.' },
+  { id: 'commercial', name: 'Commercial success', desc: 'Commercial success in the performing arts (box office, sales).' },
+  { id: 'other', name: 'Other / supporting', desc: 'Recommendation letters, comparable evidence, and final-merits support.' }
+];
+const STATUSES = [
+  { id: 'idea', label: 'Idea' },
+  { id: 'collecting', label: 'Collecting evidence' },
+  { id: 'ready', label: 'Ready' }
+];
+
+const $ = s => document.querySelector(s);
+const critById = id => CRITERIA.find(c => c.id === id) || CRITERIA[CRITERIA.length - 1];
+const statusLabel = id => (STATUSES.find(s => s.id === id) || STATUSES[0]).label;
+const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+const safeUrl = u => /^https?:\/\//i.test(u);
+
+let db;
+let items = [];
+let editing = null;
+let removeSet = new Set();
+const filter = { q: '', criterion: '', status: '' };
+
+// ---------- DOM helper (uses textContent, so user data is never parsed as HTML) ----------
+function h(tag, attrs = {}, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v == null || v === false) continue;
+    if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+    else if (k === 'class') el.className = v;
+    else el.setAttribute(k, v === true ? '' : v);
+  }
+  for (const kid of kids.flat()) {
+    if (kid == null || kid === false) continue;
+    el.append(kid instanceof Node ? kid : String(kid));
+  }
+  return el;
+}
+
+// ---------- IndexedDB ----------
+const req = r => new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+const done = t => new Promise((res, rej) => { t.oncomplete = () => res(); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error); });
+
+function openDB() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open('eb1a-tracker', 1);
+    r.onupgradeneeded = () => {
+      const d = r.result;
+      d.createObjectStore('items', { keyPath: 'id' });
+      d.createObjectStore('files', { keyPath: 'id' }).createIndex('itemId', 'itemId');
+    };
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+const getAll = store => req(db.transaction(store).objectStore(store).getAll());
+
+// ---------- Formatting ----------
+function fmtSize(n) {
+  if (n < 1024) return n + ' B';
+  if (n < 1048576) return (n / 1024).toFixed(1) + ' KB';
+  if (n < 1073741824) return (n / 1048576).toFixed(1) + ' MB';
+  return (n / 1073741824).toFixed(2) + ' GB';
+}
+function fmtDate(d) {
+  const dt = new Date(d + 'T00:00:00');
+  return isNaN(dt) ? d : dt.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+let toastTimer;
+function toast(msg) {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ---------- Rendering ----------
+async function refresh() { items = await getAll('items'); render(); }
+function render() { renderCriteria(); renderList(); updateStorage(); }
+
+function renderCriteria() {
+  const grid = $('#criteria');
+  grid.replaceChildren();
+  let met = 0;
+  for (const c of CRITERIA) {
+    const list = items.filter(i => i.criterion === c.id);
+    const ready = list.filter(i => i.status === 'ready').length;
+    const counts = c.id !== 'other';
+    if (counts && ready > 0) met++;
+    const active = filter.criterion === c.id;
+    grid.append(h('button', {
+      type: 'button',
+      class: 'crit' + (counts && ready ? ' met' : '') + (active ? ' active' : ''),
+      'aria-pressed': String(active),
+      title: c.desc,
+      onclick: () => { filter.criterion = active ? '' : c.id; $('#f-crit').value = filter.criterion; render(); }
+    },
+      h('span', { class: 'crit-name' }, c.name),
+      h('span', { class: 'crit-count' }, `${list.length} ${list.length === 1 ? 'entry' : 'entries'} · ${ready} ready`),
+      counts && ready ? h('span', { class: 'crit-badge' }, '✓ Has ready evidence') : null
+    ));
+  }
+  const s = $('#met');
+  s.textContent = `${met} of 10 criteria have evidence marked ready`;
+  s.className = 'met-summary' + (met >= 3 ? ' ok' : '');
+  $('#met-note').textContent = met >= 3
+    ? 'At least 3 criteria covered. Keep strengthening for the final-merits review.'
+    : `EB-1A needs evidence for at least 3 criteria. ${3 - met} more to go.`;
+}
+
+function renderList() {
+  const q = filter.q.toLowerCase();
+  const list = items
+    .filter(i => (!filter.criterion || i.criterion === filter.criterion)
+      && (!filter.status || i.status === filter.status)
+      && (!q || [i.title, i.summary, i.impact, (i.tags || []).join(' '), (i.links || []).join(' '), (i.files || []).map(f => f.name).join(' ')]
+        .join(' ').toLowerCase().includes(q)))
+    .sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.updatedAt - a.updatedAt);
+  const ul = $('#list');
+  ul.replaceChildren();
+  $('#count').textContent = `Showing ${list.length} of ${items.length}`;
+  if (!list.length) {
+    ul.append(h('li', { class: 'empty' }, items.length ? 'No entries match your filters.' : 'No entries yet. Click "Add entry" to log your first contribution.'));
+    return;
+  }
+  for (const i of list) ul.append(card(i));
+}
+
+function card(i) {
+  const c = critById(i.criterion);
+  return h('li', { class: 'card' },
+    h('div', { class: 'card-head' },
+      h('h3', {}, i.title),
+      h('div', { class: 'badges' },
+        h('span', { class: 'badge' }, c.name),
+        h('span', { class: 'badge status-' + i.status }, statusLabel(i.status)),
+        i.date ? h('span', { class: 'muted' }, fmtDate(i.date)) : null)),
+    i.summary ? h('p', {}, i.summary) : null,
+    i.impact ? h('p', {}, h('strong', {}, 'Significance: '), i.impact) : null,
+    i.links && i.links.length ? h('ul', { class: 'links', 'aria-label': 'Links' },
+      i.links.map(l => h('li', {}, safeUrl(l) ? h('a', { href: l, target: '_blank', rel: 'noopener noreferrer' }, l) : l))) : null,
+    i.files && i.files.length ? h('ul', { class: 'files', 'aria-label': 'Evidence files' },
+      i.files.map(f => h('li', {},
+        h('span', {}, `📎 ${f.name} (${fmtSize(f.size)})`),
+        h('button', { type: 'button', class: 'link no-print', 'aria-label': `Open ${f.name}`, onclick: () => openFile(f.id, false) }, 'Open'),
+        h('button', { type: 'button', class: 'link no-print', 'aria-label': `Download ${f.name}`, onclick: () => openFile(f.id, true) }, 'Download')))) : null,
+    i.tags && i.tags.length ? h('div', { class: 'tags' }, i.tags.map(t => h('span', { class: 'tag' }, '#' + t))) : null,
+    h('div', { class: 'actions no-print' },
+      h('button', { type: 'button', onclick: () => openForm(i) }, 'Edit'),
+      h('button', { type: 'button', class: 'danger', onclick: () => removeItem(i) }, 'Delete'))
+  );
+}
+
+async function updateStorage() {
+  if (!navigator.storage || !navigator.storage.estimate) return;
+  const { usage, quota } = await navigator.storage.estimate();
+  $('#storage').textContent = `Using ${fmtSize(usage || 0)} of about ${fmtSize(quota || 0)} available browser storage.`;
+}
+
+// ---------- Files ----------
+async function openFile(id, download) {
+  const f = await req(db.transaction('files').objectStore('files').get(id));
+  if (!f) { toast('File not found.'); return; }
+  const url = URL.createObjectURL(f.blob);
+  if (download || !window.open(url, '_blank')) {
+    const a = h('a', { href: url, download: f.name });
+    document.body.append(a);
+    a.click();
+    a.remove();
+  }
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+// ---------- Add / edit / delete ----------
+function updateCritDesc() { $('#e-crit-desc').textContent = critById($('#e-crit').value).desc; }
+
+function renderExisting() {
+  const ul = $('#e-existing');
+  ul.replaceChildren();
+  const files = editing ? editing.files || [] : [];
+  if (!files.length) { ul.append(h('li', { class: 'hint' }, 'None yet.')); return; }
+  for (const f of files) {
+    const removed = removeSet.has(f.id);
+    ul.append(h('li', { class: removed ? 'removed' : '' },
+      h('span', {}, `${f.name} (${fmtSize(f.size)})`),
+      h('button', {
+        type: 'button', class: 'link', 'aria-pressed': String(removed),
+        onclick: () => { removed ? removeSet.delete(f.id) : removeSet.add(f.id); renderExisting(); }
+      }, removed ? 'Undo remove' : 'Remove')));
+  }
+}
+
+function openForm(item) {
+  editing = item || null;
+  removeSet = new Set();
+  $('#form').reset();
+  $('#dlg-title').textContent = item ? 'Edit entry' : 'Add entry';
+  $('#e-title').value = item ? item.title : '';
+  $('#e-crit').value = item ? item.criterion : (filter.criterion || 'contributions');
+  $('#e-status').value = item ? item.status : 'collecting';
+  $('#e-date').value = item ? item.date || '' : '';
+  $('#e-summary').value = item ? item.summary || '' : '';
+  $('#e-impact').value = item ? item.impact || '' : '';
+  $('#e-links').value = item ? (item.links || []).join('\n') : '';
+  $('#e-tags').value = item ? (item.tags || []).join(', ') : '';
+  updateCritDesc();
+  renderExisting();
+  $('#dlg').showModal();
+  $('#e-title').focus();
+}
+
+async function saveForm(e) {
+  e.preventDefault();
+  const now = Date.now();
+  const id = editing ? editing.id : uid();
+  // Read file bytes BEFORE opening the transaction (an await inside it would auto-commit).
+  const added = [];
+  for (const file of $('#e-files').files) {
+    const blob = new Blob([await file.arrayBuffer()], { type: file.type || 'application/octet-stream' });
+    added.push({ id: uid(), itemId: id, name: file.name, type: file.type, size: file.size, blob });
+  }
+  const kept = (editing ? editing.files || [] : []).filter(f => !removeSet.has(f.id));
+  const item = {
+    id,
+    title: $('#e-title').value.trim(),
+    criterion: $('#e-crit').value,
+    status: $('#e-status').value,
+    date: $('#e-date').value,
+    summary: $('#e-summary').value.trim(),
+    impact: $('#e-impact').value.trim(),
+    links: $('#e-links').value.split('\n').map(s => s.trim()).filter(Boolean),
+    tags: $('#e-tags').value.split(',').map(s => s.trim().replace(/^#/, '')).filter(Boolean),
+    files: [...kept, ...added.map(({ blob, ...meta }) => meta)],
+    createdAt: editing ? editing.createdAt : now,
+    updatedAt: now
+  };
+  if (!item.title) { $('#e-title').focus(); return; }
+  const t = db.transaction(['items', 'files'], 'readwrite');
+  t.objectStore('items').put(item);
+  for (const a of added) t.objectStore('files').put(a);
+  for (const fid of removeSet) t.objectStore('files').delete(fid);
+  try { await done(t); } catch (err) { toast('Save failed: ' + (err && err.message || err)); return; }
+  const wasEdit = !!editing;
+  $('#dlg').close();
+  toast(wasEdit ? 'Entry updated.' : 'Entry added.');
+  await refresh();
+}
+
+async function removeItem(item) {
+  if (!confirm(`Delete "${item.title}" and its ${(item.files || []).length} attached file(s)? This cannot be undone.`)) return;
+  const t = db.transaction(['items', 'files'], 'readwrite');
+  t.objectStore('items').delete(item.id);
+  t.objectStore('files').index('itemId').openCursor(IDBKeyRange.only(item.id)).onsuccess = ev => {
+    const cur = ev.target.result;
+    if (cur) { cur.delete(); cur.continue(); }
+  };
+  await done(t);
+  toast('Entry deleted.');
+  await refresh();
+}
+
+// ---------- Backup ----------
+const blobToDataURL = blob => new Promise((res, rej) => {
+  const r = new FileReader();
+  r.onload = () => res(r.result);
+  r.onerror = () => rej(r.error);
+  r.readAsDataURL(blob);
+});
+function dataURLToBlob(u) {
+  const comma = u.indexOf(',');
+  const type = (u.slice(0, comma).match(/^data:([^;,]*)/) || [])[1] || 'application/octet-stream';
+  const bin = atob(u.slice(comma + 1));
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type });
+}
+
+async function exportBackup() {
+  const all = await getAll('items');
+  const files = await getAll('files');
+  const out = {
+    app: 'eb1a-tracker', version: 1, exportedAt: new Date().toISOString(), items: all,
+    files: await Promise.all(files.map(async f => ({ id: f.id, itemId: f.itemId, name: f.name, type: f.type, size: f.size, data: await blobToDataURL(f.blob) })))
+  };
+  const url = URL.createObjectURL(new Blob([JSON.stringify(out)], { type: 'application/json' }));
+  const a = h('a', { href: url, download: `eb1a-backup-${new Date().toISOString().slice(0, 10)}.json` });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  toast(`Exported ${all.length} entries and ${files.length} files.`);
+}
+
+const str = (v, max = 20000) => typeof v === 'string' ? v.slice(0, max) : '';
+function cleanItem(i) {
+  if (!i || typeof i.id !== 'string' || !str(i.title)) return null;
+  return {
+    id: i.id,
+    title: str(i.title, 300),
+    criterion: CRITERIA.some(c => c.id === i.criterion) ? i.criterion : 'other',
+    status: STATUSES.some(s => s.id === i.status) ? i.status : 'idea',
+    date: /^\d{4}-\d{2}-\d{2}$/.test(i.date) ? i.date : '',
+    summary: str(i.summary), impact: str(i.impact),
+    links: Array.isArray(i.links) ? i.links.map(l => str(l, 2000)).filter(Boolean) : [],
+    tags: Array.isArray(i.tags) ? i.tags.map(t => str(t, 100)).filter(Boolean) : [],
+    files: Array.isArray(i.files) ? i.files.filter(f => f && typeof f.id === 'string')
+      .map(f => ({ id: f.id, itemId: i.id, name: str(f.name, 500) || 'file', type: str(f.type, 200), size: Number(f.size) || 0 })) : [],
+    createdAt: Number(i.createdAt) || Date.now(),
+    updatedAt: Number(i.updatedAt) || Date.now()
+  };
+}
+
+async function importBackup(e) {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  let data;
+  try { data = JSON.parse(await file.text()); } catch { toast('That file is not a valid backup.'); return; }
+  if (!data || data.app !== 'eb1a-tracker' || !Array.isArray(data.items) || !Array.isArray(data.files)) {
+    toast('That file is not an EB-1A tracker backup.');
+    return;
+  }
+  if (!confirm(`Import ${data.items.length} entries and ${data.files.length} files? Entries with matching IDs will be overwritten; others are kept.`)) return;
+  try {
+    const itemsIn = data.items.map(cleanItem).filter(Boolean);
+    const filesIn = data.files
+      .filter(f => f && typeof f.id === 'string' && typeof f.data === 'string' && f.data.startsWith('data:'))
+      .map(f => ({ id: f.id, itemId: String(f.itemId), name: str(f.name, 500) || 'file', type: str(f.type, 200), size: Number(f.size) || 0, blob: dataURLToBlob(f.data) }));
+    const t = db.transaction(['items', 'files'], 'readwrite');
+    for (const i of itemsIn) t.objectStore('items').put(i);
+    for (const f of filesIn) t.objectStore('files').put(f);
+    await done(t);
+    toast(`Imported ${itemsIn.length} entries and ${filesIn.length} files.`);
+  } catch (err) {
+    toast('Import failed: ' + (err && err.message || err));
+  }
+  await refresh();
+}
+
+// ---------- Init ----------
+async function init() {
+  const critOpts = CRITERIA.map(c => h('option', { value: c.id }, c.name));
+  $('#e-crit').append(...critOpts);
+  $('#f-crit').append(...CRITERIA.map(c => h('option', { value: c.id }, c.name)));
+  $('#e-status').append(...STATUSES.map(s => h('option', { value: s.id }, s.label)));
+  $('#f-status').append(...STATUSES.map(s => h('option', { value: s.id }, s.label)));
+
+  $('#btn-add').addEventListener('click', () => openForm(null));
+  $('#btn-cancel').addEventListener('click', () => $('#dlg').close());
+  $('#form').addEventListener('submit', saveForm);
+  $('#e-crit').addEventListener('change', updateCritDesc);
+  $('#btn-export').addEventListener('click', exportBackup);
+  $('#btn-import').addEventListener('click', () => $('#import-input').click());
+  $('#import-input').addEventListener('change', importBackup);
+  $('#btn-print').addEventListener('click', () => window.print());
+  $('#f-q').addEventListener('input', e => { filter.q = e.target.value; renderList(); });
+  $('#f-crit').addEventListener('change', e => { filter.criterion = e.target.value; render(); });
+  $('#f-status').addEventListener('change', e => { filter.status = e.target.value; renderList(); });
+  $('#f-clear').addEventListener('click', () => {
+    Object.assign(filter, { q: '', criterion: '', status: '' });
+    $('#f-q').value = ''; $('#f-crit').value = ''; $('#f-status').value = '';
+    render();
+  });
+
+  try {
+    db = await openDB();
+  } catch (err) {
+    $('#list').replaceChildren(h('li', { class: 'empty' }, 'This browser blocked local storage (private mode?). Open the file in a normal window.'));
+    return;
+  }
+  // Ask the browser not to evict our data under storage pressure.
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+  await refresh();
+}
+init();
+</script>
+</body>
+</html>

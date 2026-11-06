@@ -1,0 +1,5 @@
+# Never commit personal data: backups and evidence stay off GitHub.
+*.json
+evidence/
+backups/
+.DS_Store
