@@ -38,13 +38,42 @@
   .met-summary { font-weight: 600; padding: 8px 12px; border-radius: 8px; background: var(--warn-bg); color: var(--warn-text); display: inline-block; }
   .met-summary.ok { background: var(--ok-bg); color: var(--ok-text); }
   .muted { color: var(--muted); }
-  .criteria { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
-  .crit { text-align: left; display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; }
-  .crit.met { border-color: var(--ok-text); }
-  .crit.active { outline: 2px solid var(--accent); }
+  /* Progress toward the 3-criteria minimum */
+  .progress { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; margin: 4px 0 14px; max-width: 520px; }
+  .progress span { height: 8px; border-radius: 4px; background: var(--chip-bg); }
+  .progress span.on { background: var(--ok-text); }
+  .progress span.req:not(.on) { background: var(--warn-bg); outline: 1px solid var(--warn-text); }
+  .acc-tools { display: flex; gap: 8px; margin-bottom: 8px; }
+
+  /* Criteria accordion */
+  .criteria { display: grid; gap: 8px; }
+  .crit { background: var(--surface); color: var(--text); border: 1px solid var(--border); border-left: 4px solid var(--border); border-radius: 12px; overflow: hidden; transition: box-shadow .15s, border-color .15s; }
+  .crit:hover { box-shadow: 0 2px 10px rgb(0 0 0 / .08); }
+  .crit.met { border-left-color: var(--ok-text); }
+  .crit.open { box-shadow: 0 4px 16px rgb(0 0 0 / .10); }
+  .crit-head { width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: none; border-radius: 0; background: transparent; text-align: left; }
+  .crit-head:hover { background: var(--chip-bg); }
+  .chev { flex: none; width: 10px; height: 10px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(-45deg); transition: transform .2s; margin: 0 4px; }
+  .crit.open .chev { transform: rotate(45deg); }
+  .crit-title { flex: 1; min-width: 0; display: flex; flex-direction: column; }
   .crit-name { font-weight: 600; }
-  .crit-count { color: var(--muted); font-size: .9rem; }
-  .crit-badge { font-size: .8rem; color: var(--ok-text); background: var(--ok-bg); border-radius: 6px; padding: 1px 6px; align-self: flex-start; }
+  .crit-desc { color: var(--muted); font-size: .85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .crit.open .crit-desc { white-space: normal; }
+  .crit-stats { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .crit-badge { font-size: .8rem; color: var(--ok-text); background: var(--ok-bg); border-radius: 999px; padding: 2px 10px; font-weight: 600; }
+  /* Height animation via grid rows 0fr -> 1fr */
+  .crit-panel { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .25s ease; }
+  .crit.open .crit-panel { grid-template-rows: 1fr; }
+  .crit-inner { overflow: hidden; }
+  .crit-body { padding: 4px 14px 14px 40px; border-top: 1px solid var(--border); }
+  .mini-list { list-style: none; margin: 10px 0; padding: 0; display: grid; gap: 6px; }
+  .mini { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); }
+  .mini-title { flex: 1; min-width: 180px; font-weight: 500; }
+  .mini-meta { color: var(--muted); font-size: .85rem; }
+  .mini-sub { margin: 12px 0 0; font-size: .9rem; color: var(--muted); font-weight: 600; }
+  .crit-empty { color: var(--muted); margin: 10px 0; }
+  @media (prefers-reduced-motion: reduce) { .crit, .chev, .crit-panel { transition: none; } }
+  @media (max-width: 600px) { .crit-head { flex-wrap: wrap; } .crit-stats { width: 100%; justify-content: flex-start; padding-left: 26px; } .crit-body { padding-left: 14px; } }
   .filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0; }
   .filters label { display: flex; flex-direction: column; font-size: .85rem; color: var(--muted); gap: 2px; }
   input, select, textarea { font: inherit; padding: 7px 9px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); }
@@ -87,6 +116,8 @@
     body { background: #fff; color: #000; }
     .card { break-inside: avoid; border-color: #999; }
     [role=tabpanel][hidden] { display: block !important; }
+    .crit-panel { grid-template-rows: 1fr !important; }
+    .crit { box-shadow: none !important; break-inside: avoid; }
   }
 </style>
 </head>
@@ -109,6 +140,11 @@
   <section aria-labelledby="crit-heading">
     <h2 id="crit-heading">Criteria overview</h2>
     <p><span id="met" class="met-summary" role="status"></span> <span id="met-note" class="muted"></span></p>
+    <div id="progress" class="progress" aria-hidden="true"></div>
+    <div class="acc-tools no-print">
+      <button type="button" id="btn-expand-all">Expand all</button>
+      <button type="button" id="btn-collapse-all">Collapse all</button>
+    </div>
     <div id="criteria" class="criteria"></div>
   </section>
 
@@ -360,30 +396,91 @@ async function refresh() { items = await getAll('items'); invites = await getAll
 function render() { renderCriteria(); renderList(); renderInvites(); updateStorage(); }
 const completedJudging = () => invites.filter(v => v.response === 'completed' && JUDGING_TYPES.has(v.type)).length;
 
+// Which criteria are expanded; kept across re-renders so saving an entry doesn't collapse the panel.
+const openCrit = new Set();
+
+function toggleCrit(id, el) {
+  const open = !openCrit.has(id);
+  open ? openCrit.add(id) : openCrit.delete(id);
+  // Toggle in place (no re-render) so the slide animation plays.
+  el.classList.toggle('open', open);
+  el.querySelector('.crit-head').setAttribute('aria-expanded', String(open));
+  el.querySelector('.crit-panel').inert = !open;
+}
+
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+const byDateDesc = (a, b, k) => (b[k] || '').localeCompare(a[k] || '') || b.updatedAt - a.updatedAt;
+
+function miniEntry(i) {
+  const nFiles = (i.files || []).length;
+  return h('li', { class: 'mini' },
+    h('span', { class: 'mini-title' }, i.title),
+    h('span', { class: 'badge status-' + i.status }, statusLabel(i.status)),
+    i.date ? h('span', { class: 'mini-meta' }, fmtDate(i.date)) : null,
+    nFiles ? h('span', { class: 'mini-meta' }, '📎 ' + nFiles) : null,
+    h('button', { type: 'button', class: 'link no-print', 'aria-label': `Edit ${i.title}`, onclick: () => openForm(i) }, 'Edit'));
+}
+
+function miniInvite(v) {
+  const nFiles = (v.files || []).length;
+  return h('li', { class: 'mini' },
+    h('span', { class: 'mini-title' }, v.title),
+    h('span', { class: 'badge status-' + v.response }, labelOf(INVITE_RESPONSES, v.response)),
+    v.venue ? h('span', { class: 'mini-meta' }, v.venue) : null,
+    v.received ? h('span', { class: 'mini-meta' }, fmtDate(v.received)) : null,
+    nFiles ? h('span', { class: 'mini-meta' }, '📎 ' + nFiles) : null,
+    h('button', { type: 'button', class: 'link no-print', 'aria-label': `Edit ${v.title}`, onclick: () => openInviteForm(v) }, 'Edit'));
+}
+
 function renderCriteria() {
   const grid = $('#criteria');
   grid.replaceChildren();
   let met = 0;
   for (const c of CRITERIA) {
-    const list = items.filter(i => i.criterion === c.id);
-    const reviews = c.id === 'judging' ? completedJudging() : 0;
+    const list = items.filter(i => i.criterion === c.id).sort((a, b) => byDateDesc(a, b, 'date'));
+    const judgingInv = c.id === 'judging'
+      ? invites.filter(v => JUDGING_TYPES.has(v.type)).sort((a, b) => byDateDesc(a, b, 'received')) : [];
+    const reviews = judgingInv.filter(v => v.response === 'completed').length;
     const ready = list.filter(i => i.status === 'ready').length + reviews;
     const counts = c.id !== 'other';
-    if (counts && ready > 0) met++;
-    const active = filter.criterion === c.id;
-    grid.append(h('button', {
-      type: 'button',
-      class: 'crit' + (counts && ready ? ' met' : '') + (active ? ' active' : ''),
-      'aria-pressed': String(active),
-      title: c.desc,
-      onclick: () => { filter.criterion = active ? '' : c.id; $('#f-crit').value = filter.criterion; render(); }
-    },
-      h('span', { class: 'crit-name' }, c.name),
-      h('span', { class: 'crit-count' }, `${list.length} ${list.length === 1 ? 'entry' : 'entries'} · ${ready} ready`),
-      reviews ? h('span', { class: 'crit-count' }, `incl. ${reviews} completed ${reviews === 1 ? 'review' : 'reviews'} from Invitations`) : null,
-      counts && ready ? h('span', { class: 'crit-badge' }, '✓ Has ready evidence') : null
-    ));
+    const isMet = counts && ready > 0;
+    if (isMet) met++;
+    const open = openCrit.has(c.id);
+    const panelId = 'crit-panel-' + c.id;
+
+    const body = h('div', { class: 'crit-body' },
+      h('p', { class: 'muted' }, c.desc),
+      list.length ? h('ul', { class: 'mini-list', 'aria-label': `${c.name} entries` }, list.map(miniEntry))
+        : h('p', { class: 'crit-empty' }, 'No entries for this criterion yet.'),
+      judgingInv.length ? [
+        h('p', { class: 'mini-sub' }, `From Invitations (${reviews} completed count as ready)`),
+        h('ul', { class: 'mini-list', 'aria-label': 'Judging invitations' }, judgingInv.map(miniInvite))
+      ] : null,
+      h('div', { class: 'actions no-print' },
+        h('button', { type: 'button', class: 'primary', onclick: () => openForm(null, c.id) }, `+ Add to ${c.name}`),
+        c.id === 'judging' ? h('button', { type: 'button', onclick: () => openInviteForm(null) }, '+ Add invitation') : null));
+
+    const el = h('div', { class: 'crit' + (isMet ? ' met' : '') + (open ? ' open' : '') },
+      h('button', {
+        type: 'button', class: 'crit-head', 'aria-expanded': String(open), 'aria-controls': panelId,
+        onclick: () => toggleCrit(c.id, el)
+      },
+        h('span', { class: 'chev', 'aria-hidden': 'true' }),
+        h('span', { class: 'crit-title' },
+          h('span', { class: 'crit-name' }, c.name),
+          h('span', { class: 'crit-desc' }, c.desc)),
+        h('span', { class: 'crit-stats' },
+          h('span', { class: 'badge' }, plural(list.length + judgingInv.length, 'item', 'items')),
+          h('span', { class: 'badge' }, `${ready} ready`),
+          isMet ? h('span', { class: 'crit-badge' }, '✓ Covered') : null)),
+      h('div', { class: 'crit-panel', id: panelId, role: 'region', 'aria-label': `${c.name} details` },
+        h('div', { class: 'crit-inner' }, body)));
+    el.querySelector('.crit-panel').inert = !open;
+    grid.append(el);
   }
+  // 10 segments; the first 3 mark the regulatory minimum.
+  $('#progress').replaceChildren(...Array.from({ length: 10 }, (_, k) =>
+    h('span', { class: (k < met ? 'on' : '') + (k < 3 ? ' req' : '') })));
   const s = $('#met');
   s.textContent = `${met} of 10 criteria have evidence marked ready`;
   s.className = 'met-summary' + (met >= 3 ? ' ok' : '');
@@ -475,13 +572,13 @@ function renderExisting(sel = '#e-existing', rec = editing) {
   }
 }
 
-function openForm(item) {
+function openForm(item, defCrit) {
   editing = item || null;
   removeSet = new Set();
   $('#form').reset();
   $('#dlg-title').textContent = item ? 'Edit entry' : 'Add entry';
   $('#e-title').value = item ? item.title : '';
-  $('#e-crit').value = item ? item.criterion : (filter.criterion || 'contributions');
+  $('#e-crit').value = item ? item.criterion : (defCrit || filter.criterion || 'contributions');
   $('#e-status').value = item ? item.status : 'collecting';
   $('#e-date').value = item ? item.date || '' : '';
   $('#e-summary').value = item ? item.summary || '' : '';
@@ -791,6 +888,8 @@ async function init() {
   $('#btn-import').addEventListener('click', () => $('#import-input').click());
   $('#import-input').addEventListener('change', importBackup);
   $('#btn-print').addEventListener('click', () => window.print());
+  $('#btn-expand-all').addEventListener('click', () => { CRITERIA.forEach(c => openCrit.add(c.id)); renderCriteria(); });
+  $('#btn-collapse-all').addEventListener('click', () => { openCrit.clear(); renderCriteria(); });
   $('#f-q').addEventListener('input', e => { filter.q = e.target.value; renderList(); });
   $('#f-crit').addEventListener('change', e => { filter.criterion = e.target.value; render(); });
   $('#f-status').addEventListener('change', e => { filter.status = e.target.value; renderList(); });
